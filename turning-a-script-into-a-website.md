@@ -480,7 +480,8 @@ So now that we've managed to turn a script that had the simple three-phase
 input-process-output structure into a website, how about handling the more complicated
 case where you have more phases?  A common case is where you have an indefinite
 number of inputs, and the output depends on all of them.   For example, here's
-a simple script that will allow you to enter a list of numbers and then will display
+a simple script that will allow you to enter a list of numbers, one after another,
+and then will display
 the statistical mode (the most common number) in the list, with an appropriate error
 message if there is no most common number (for example in the list [1, 2, 3, 4]).
 
@@ -509,7 +510,7 @@ message if there is no most common number (for example in the list [1, 2, 3, 4])
 
     print(calculate_mode(inputs))
 
-How can we get that into a website?  We could display, say, 100 input fields and let
+How can we turn that into a website?  We could display, say, 100 input fields and let
 the user leave the ones they don't want blank, but (a) that would look hideous,
 and (b) it would leave people who wanted to get the mode of 150 numbers stuck.
 
@@ -536,8 +537,10 @@ Firstly, in our `processing.py` file we have the processing code, just as before
         except statistics.StatisticsError as exc:
             return "Error calculating mode: {}".format(exc)
 
-That should be pretty clear.  Now, in `flask_app.py` we have this (don't worry, a step-by-step
-explanation is coming later):
+That should be pretty clear.  Now, in `flask_app.py` we have the following code:
+
+*(A step-by-step explanation is coming later, but it's worth reading through now to see
+if you can see how at least some of it it works.)*
 
     from flask import Flask, request
 
@@ -552,7 +555,6 @@ explanation is coming later):
     def mode_page():
         errors = ""
         if request.method == "POST":
-            number = None
             try:
                 inputs.append(float(request.form["number"]))
             except:
@@ -596,13 +598,50 @@ All clear?  Maybe...  It does work, though, sort of.   Let's try it -- copy the 
 the two files into your editor tabs, reload the site, and give it a go.   If you have a free
 account, it will work!
 
-IMAGES
+<img src="/static/images/script-to-webapp-globals-free-account-1.png">
 
-But if you have a paid account, you'll see some weird behaviour -- it
-will seem to sometimes forget numbers, and then remember them again later, as if it has multiple
-lists of numbers.
+Enter "1", and you get this:
 
-IMAGES
+<img src="/static/images/script-to-webapp-globals-free-account-2.png">
+
+Enter some more numbers:
+
+<img src="/static/images/script-to-webapp-globals-free-account-3.png">
+
+...and calculate the result:
+
+<img src="/static/images/script-to-webapp-globals-free-account-4.png">
+
+But if you have a paid account, you'll see some weird behaviour.  The results
+will look a bit random, but here's an example of the
+kind of thing you might see:
+
+<img src="/static/images/script-to-webapp-globals-paid-account-1.png">
+
+Enter 1, and you might get this:
+
+<img src="/static/images/script-to-webapp-globals-paid-account-2.png">
+
+Enter 2, and you might get this:
+
+<img src="/static/images/script-to-webapp-globals-paid-account-3.png">
+
+Huh?  Where did the "1" go?  Well, let's enter "3":
+
+<img src="/static/images/script-to-webapp-globals-paid-account-4.png">
+
+Well, that seems to have worked.  We'll add "4":
+
+<img src="/static/images/script-to-webapp-globals-paid-account-5.png">
+
+And now we'll add "1" again:
+
+<img src="/static/images/script-to-webapp-globals-paid-account-6.png">
+
+So now our original 1 has come back, but all of the other numbers have disappeared.
+
+In general, it will seem to sometimes forget numbers, and then remember them again
+later, as if it has multiple lists of numbers -- which is exactly what it does.
 
 Before we go into why it's actually wrong (and why, counterintuitively, it works *worse* on a
 paid account than on a free one), here's the promised step-by-step runthrough,
@@ -630,7 +669,6 @@ the view function:
 
         errors = ""
         if request.method == "POST":
-            number = None
             try:
                 inputs.append(float(request.form["number"]))
             except:
@@ -651,9 +689,7 @@ them:
 This means that when we get a post request from a browser, the "action" value in the `form`
 object will contain the text of the submit button that was actually clicked.
 
-So, if the "Calculate number" button was the one that the user clicked, we do the calculation
-and return the result (clearing the list of the inputs at the same time so that the user can
-try again with another list):
+So, if the "Calculate number" button was the one that the user clicked...
 
                 result = calculate_mode(inputs)
                 inputs.clear()
@@ -666,7 +702,10 @@ try again with another list):
                     </html>
                 '''.format(result=result)
 
-If we get past that `if` statement, it means either that:
+...we do the calculation and return the result (clearing the list of the inputs at the same
+time so that the user can try again with another list):
+
+If, however, we get past that `if request.form["action"] == "Calculate number"` statement, it means either that:
 
 * The request was using the post method, and we've just added a number to the list or set the error string to reflect the fact that the user entered an invalid number, or
 * The request was using the get method
@@ -711,25 +750,23 @@ the same time).
 What you'll see is that both users are sharing a list of numbers.  The Chrome user starts off,
 and adds a number to the list:
 
-IMAGE
+<img src="/static/images/script-to-webapp-globals-free-account-chrome.png">
 
 Now the Firefox user adds a number -- but they see not only the number they added, but also the
 Chrome user's number:
 
-IMAGE
+<img src="/static/images/script-to-webapp-globals-free-account-firefox.png">
 
 It's pretty clear what's going on here.   There's one server handling the requests from both users,
 so there's only one list of inputs -- so everyone shares the same list.
 
 But what about the situation for websites running on paid accounts?   If you'll remember, it looked
-like the opposite was going on there -- each browser had multiple lists:
-
-IMAGES
+like the opposite was going on there -- there were multiple lists, even within the same browser.
 
 This is because paid accounts have multiple servers for the same website.   This is a good thing,
 it means that if they get lots of requests coming in at the same time, then everything gets processed
-more quickly -- so they have higher-traffic websites.  But it also means that different requests,
-*even successive requests from the same browser*, will wind up going to different servers, and because
+more quickly -- so they can have higher-traffic websites.  But it also means that different requests,
+*even successive requests from the same browser*, can wind up going to different servers, and because
 each server has its own list, the browser will see one list for one request, but see a different
 list on the next request.
 
@@ -764,7 +801,6 @@ where we configure Flask's debug setting to be True:
 
 Use a different string to the one I put above; mashing the keyboard randomly is a good way to get a
 reasonably random string, though if you want to do things properly, find something truly random.
-If you have a cat, put it on the keyboard -- that normally works well for me.
 
 Next, we'll get rid of
 the global `inputs` list by deleting this line:
@@ -772,13 +808,13 @@ the global `inputs` list by deleting this line:
     inputs = []
 
 Now we'll use an `inputs` list that's stored inside the `session` object (which looks like
-a dictionary) instead of using our global variable when we add the item to the list.  Firstly,
+a dictionary) instead of using our global variable.  Firstly,
 let's makes sure that whenever we're in our view function, we have a list of inputs associated
 with the current session if there isn't one already.   Right at the start of the view function,
 add this:
 
-    if "inputs" not in session:
-        session["inputs"] = []
+        if "inputs" not in session:
+            session["inputs"] = []
 
 Next, inside the bit of code where we're adding a number to the inputs list, replace this line:
 
@@ -806,6 +842,10 @@ inputs:
 ...and the line that clears the inputs so that the user can do another list likewise changes
 from
 
+            inputs.clear()
+
+to:
+
             session["inputs"].clear()
             session.modified = True
 
@@ -830,10 +870,67 @@ to use the session:
 
 Once all of those code changes have been done, you should have this:
 
-CODE
+    from flask import Flask, request, session
+
+    from processing import calculate_mode
+
+    app = Flask(__name__)
+    app.config["DEBUG"] = True
+    app.config["SECRET_KEY"] = "lkmaslkdsldsamdlsdmasldsmkdd"
+
+    @app.route("/", methods=["GET", "POST"])
+    def mode_page():
+        if "inputs" not in session:
+            session["inputs"] = []
+
+        errors = ""
+        if request.method == "POST":
+            try:
+                session["inputs"].append(float(request.form["number"]))
+                session.modified = True
+            except:
+                errors += "<p>{!r} is not a number.</p>\n".format(request.form["number"])
+
+            if request.form["action"] == "Calculate number":
+                result = calculate_mode(session["inputs"])
+                session["inputs"].clear()
+                session.modified = True
+                return '''
+                    <html>
+                        <body>
+                            <p>{result}</p>
+                            <p><a href="/">Click here to calculate again</a>
+                        </body>
+                    </html>
+                '''.format(result=result)
+
+        if len(session["inputs"]) == 0:
+            numbers_so_far = ""
+        else:
+            numbers_so_far = "<p>Numbers so far:</p>"
+            for number in session["inputs"]:
+                numbers_so_far += "<p>{}</p>".format(number)
+
+        return '''
+            <html>
+                <body>
+                    {numbers_so_far}
+                    {errors}
+                    <p>Enter your number:
+                    <form method="post" action=".">
+                        <p><input name="number" /></p>
+                        <p><input type="submit" name="action" value="Add another" /></p>
+                        <p><input type="submit" name="action" value="Calculate number" /></p>
+                    </form>
+                </body>
+            </html>
+        '''.format(numbers_so_far=numbers_so_far, errors=errors)
 
 Hit the reload button, and give it a try!  If you have a paid account, you'll find that now
 it all works properly -- and if you have a free account, you'll see that separate browsers now
 have separate lists of numbers :-)
+
+So now we have a multi-user website that keeps state around between page visits.
+
 
 
