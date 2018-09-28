@@ -933,4 +933,198 @@ have separate lists of numbers :-)
 So now we have a multi-user website that keeps state around between page visits.
 
 
+## Processing files
+
+Now, entering all of those numbers one-by-one would be tedious if there were a lot of them.
+A lot of Python scripts don't request the user to enter data a line at a time; they take a
+file as their input, process it, and produce a file as the output.  Here's a simple script
+that asks for an input filename and an output filename.   It expects the input file to contain
+a number of lines, each with a comma-separated list of numbers on it.   It writes to the
+output file the same number of lines, each one with just the sum of the numbers from the
+equivalent line in the input file.
+
+    def process_data(input_data):
+        result = ""
+        for line in input_data.split("\n"):
+            if line != "":
+                numbers = [float(n) for n in line.split(", ")]
+                result += str(sum(numbers))
+            result += "\n"
+        return result
+
+    input_filename = input("Enter the input filename: ")
+    output_filename = input("Enter the output filename: ")
+
+    with open(input_filename, "r") as input_file:
+        input_data = input_file.read()
+
+    with open(output_filename, "w") as output_file:
+        output_file.write(process_data(input_data))
+
+
+What we want is a Flask app that will allow the user to upload a file like the input
+file that that script requires, and will then provide the output file to download.  This is actually
+pretty similar to the original app we did -- there's just three phases, input-process-output.  So
+the Flask app looks very similar.
+
+Firstly, we put our calculationg routine into `processing.py`, as normal:
+
+    def process_data(input_data):
+        result = ""
+        for line in input_data.split("\n"):
+            if line != "":
+                numbers = [float(n) for n in line.split(", ")]
+                result += str(sum(numbers))
+            result += "\n"
+        return result
+
+...and now we write a Flask app that looks like this:
+
+    from flask import Flask, make_response, request
+
+    from processing import process_data
+
+    app = Flask(__name__)
+    app.config["DEBUG"] = True
+
+    @app.route("/", methods=["GET", "POST"])
+    def file_summer_page():
+        if request.method == "POST":
+            input_file = request.files["input_file"]
+            input_data = input_file.stream.read().decode("utf-8")
+            output_data = process_data(input_data)
+            response = make_response(output_data)
+            response.headers["Content-Disposition"] = "attachment; filename=result.csv"
+            return response
+
+        return '''
+            <html>
+                <body>
+                    <p>Select the file you want to sum up:
+                    <form method="post" action="." enctype="multipart/form-data">
+                        <p><input type="file" name="input_file" /></p>
+                        <p><input type="submit" value="Process the file" /></p>
+                    </form>
+                </body>
+            </html>
+        '''
+
+Again, we'll go through that line-by-line in a moment (though it's worth noting that
+although this feels like something that should be much harder than the first case, the
+Flask app is much shorter :-)   But let's try it out first -- we visit the page:
+
+<img src="/static/images/script-to-webapp-file-processing-start-page.png">
+
+We specify a file with contents (mine just has "1, 2, 3" on the first line and "4, 5, 6" on the
+second):
+
+<img src="/static/images/script-to-webapp-file-processing-file-specified.png">
+
+...then we click the button.  You'll have to watch for it, but a file download will
+almost immediately start.   In Chrome, for example, this will appear at the bottom
+of the window:
+
+<img src="/static/images/script-to-webapp-file-processing-result-downloaded.png">
+
+Open the file in an appropriate application -- here's what it looks like in gedit:
+
+<img src="/static/images/script-to-webapp-file-processing-show-result.png">
+
+We've got a website where we can upload a file, process it, and download the results :-)
+
+Obviously the user interface could use a bit of work, but that's left as an exercise for
+the reader...
+
+So, how dow the code work?  Here's the line-by-line breakdown:
+
+    from flask import Flask, make_response, request
+
+    from processing import process_data
+
+    app = Flask(__name__)
+    app.config["DEBUG"] = True
+
+This is our normal Flask setup code.
+
+    @app.route("/", methods=["GET", "POST"])
+    def file_summer_page():
+
+As usual, we define a view
+
+        if request.method == "POST":
+
+If the request is use the "post" method...
+
+            input_file = request.files["input_file"]
+            input_data = input_file.stream.read().decode("utf-8")
+
+...we ask Flask to extract the uploaded file from the `request` object, and then
+we read it into memory.   The file it will provide us with will be in binary format,
+so we convert it into a string, assuming that it's in the UTF-8 character set.
+
+            output_data = process_data(input_data)
+
+Now we process the data using our function.   The next step is where it gets a little more
+complicated:
+
+            response = make_response(output_data)
+            response.headers["Content-Disposition"] = "attachment; filename=result.csv"
+
+In the past, we just returned strings from our Flask view functions and let it sort out
+how that should be presented to the browser.   But this time, we want to take a little
+more control over the kind of response that's going back.  In particular, we don't want
+to dump all of the output into the browser window so that the user has to copy/paste the
+(potentially thousands of lines of) output into their spreadsheet or whatever.   Instead,
+we want to tell the browser "the thing I'm sending you is a file called 'result.csv', so
+please download it appropriately".   That's what these two lines do -- the first is just a
+way to tell Flask that we're going to need some detailed control over the response, and
+the second does that control.  Next:
+
+            return response
+
+...we just return the response.
+
+Now that we're out of that first `if` statement, we know that the request we're handling
+isn't one with a "post" method, so it must be a "get".  So we display the form:
+
+        return '''
+            <html>
+                <body>
+                    <p>Select the file you want to sum up:
+                    <form method="post" action="." enctype="multipart/form-data">
+                        <p><input type="file" name="input_file" /></p>
+                        <p><input type="submit" value="Process the file" /></p>
+                    </form>
+                </body>
+            </html>
+        '''
+
+In this case we just return a string of HTML like we did in the previous examples.   There are
+only two new things in there:
+
+                    <form method="post" action="." enctype="multipart/form-data">
+
+The `enctype="multipart/form-data"` in there is just an extra flag that is needed to tell
+the browser how to format files when it uploads them as part of the "post" request that it's sending
+to the server, and:
+
+                        <p><input type="file" name="input_file" /></p>
+
+....is just how you specify an input where the user can select a file to upload
+
+So that's it!
+
+## And we're done
+
+In this blog post we've presented three different Flask apps, each of which shows how a specific
+kind of normal Python script can be converted into a website that other people can access to
+reap the benefits of the code you've written.
+
+Hopefully they're all reasonably clear, and you can see how you could apply the same techniques
+to your own scripts.   If you have any comments or questions, please post them in the comments
+below -- and if you have any thoughts about other kinds of patterns that we could consider
+adding to an updated version of this post, or to a follow-up, do let us know.
+
+Thanks for reading!
+
 
