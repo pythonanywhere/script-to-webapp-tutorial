@@ -189,6 +189,15 @@ top, add a new line just after the line that imports Flask, to import your proce
 
     from processing import do_calculation
 
+While we're at it, let's also add a line to make debugging easier if you have a typo
+or other error in the code; just after the line that says
+
+    app = Flask(__name__)
+
+...add this:
+
+    app.config["DEBUG"] = True
+
 Save the file; you'll see that you get a warning icon next to the new line.  If you move your
 mouse pointer over the icon, you'll see the details:
 
@@ -209,10 +218,11 @@ that, we'll change the existing function that is run to display the page.  Right
 We want to display more than text, we want to display some HTML.   Now, the *best* way to do HTML in
 Flask apps is to use templates (which allow you to keep the Python code that Flask needs in separate files from
 the HTML), but we have [other tutorials](/121/) that go into the details of that.  In this case
-we'll just put the HTML right there inside our Flask code:
+we'll just put the HTML right there inside our Flask code -- and while we're at it, we'll rename the
+function:
 
     @app.route('/')
-    def hello_world():
+    def adder_page():
         return '''
             <html>
                 <body>
@@ -419,11 +429,13 @@ However, if you get completely stuck, here's the code you should currently have:
 
     from flask import Flask, request
 
-    app = Flask(__name__)
     from processing import do_calculation
 
+    app = Flask(__name__)
+    app.config["DEBUG"] = True
+
     @app.route("/", methods=["GET", "POST"])
-    def hello_world():
+    def adder_page():
         errors = ""
         if request.method == "POST":
             number1 = None
@@ -441,7 +453,7 @@ However, if you get completely stuck, here's the code you should currently have:
                 return '''
                     <html>
                         <body>
-                            <p>The result is {result}</p>
+                            <p>{result}</p>
                             <p><a href="/">Click here to calculate again</a>
                         </body>
                     </html>
@@ -460,3 +472,368 @@ However, if you get completely stuck, here's the code you should currently have:
                 </body>
             </html>
         '''.format(errors=errors)
+
+
+## The next step -- multi-phase scripts
+
+So now that we've managed to turn a script that had the simple three-phase
+input-process-output structure into a website, how about handling the more complicated
+case where you have more phases?  A common case is where you have an indefinite
+number of inputs, and the output depends on all of them.   For example, here's
+a simple script that will allow you to enter a list of numbers and then will display
+the statistical mode (the most common number) in the list, with an appropriate error
+message if there is no most common number (for example in the list [1, 2, 3, 4]).
+
+    import statistics
+
+    def calculate_mode(number_list):
+        try:
+            return "The mode of the numbers is {}".format(statistics.mode(number_list))
+        except statistics.StatisticsError as exc:
+            return "Error calculating mode: {}".format(exc)
+
+
+    inputs = []
+    while True:
+        if len(inputs) != 0:
+            print("Numbers so far:")
+            for input_value in inputs:
+                print(input_value)
+        value = input("Enter a number, or just hit return to calculate: ")
+        if value == "":
+            break
+        try:
+            inputs.append(float(value))
+        except:
+            print("{} is not a number")
+
+    print(calculate_mode(inputs))
+
+How can we get that into a website?  We could display, say, 100 input fields and let
+the user leave the ones they don't want blank, but (a) that would look hideous,
+and (b) it would leave people who wanted to get the mode of 150 numbers stuck.
+
+*(Let's put aside for the moment the fact that entering lots of numbers into a website
+would be deathly dull -- there's a solution coming for that :-)*
+
+What we need is a page that can accumulate numbers; the user enters the first,
+then clicks a button to send it to the server, which puts it in a list somewhere.
+Then they enter the next, and the server adds that one to the list.  Then the next,
+and so on, until they're finished, at which point they click a button to get the result.
+
+Here's a naive implementation.   By "naive", I mean that it sort of works in some cases,
+but doesn't in general; it's the kind of thing that one might write, only to discover
+that when other people start using it, it breaks in really weird and confusing ways.
+It's worth going through, though, because the way in which is is wrong is instructive :-)
+
+Firstly, in our `processing.py` file we have the processing code, just as before:
+
+    import statistics
+
+    def calculate_mode(number_list):
+        try:
+            return "The mode of the numbers is {}".format(statistics.mode(number_list))
+        except statistics.StatisticsError as exc:
+            return "Error calculating mode: {}".format(exc)
+
+That should be pretty clear.  Now, in `flask_app.py` we have this (don't worry, a step-by-step
+explanation is coming later):
+
+    from flask import Flask, request
+
+    from processing import calculate_mode
+
+    app = Flask(__name__)
+    app.config["DEBUG"] = True
+
+    inputs = []
+
+    @app.route("/", methods=["GET", "POST"])
+    def mode_page():
+        errors = ""
+        if request.method == "POST":
+            number = None
+            try:
+                inputs.append(float(request.form["number"]))
+            except:
+                errors += "<p>{!r} is not a number.</p>\n".format(request.form["number"])
+
+            if request.form["action"] == "Calculate number":
+                result = calculate_mode(inputs)
+                inputs.clear()
+                return '''
+                    <html>
+                        <body>
+                            <p>{result}</p>
+                            <p><a href="/">Click here to calculate again</a>
+                        </body>
+                    </html>
+                '''.format(result=result)
+
+        if len(inputs) == 0:
+            numbers_so_far = ""
+        else:
+            numbers_so_far = "<p>Numbers so far:</p>"
+            for number in inputs:
+                numbers_so_far += "<p>{}</p>".format(number)
+
+        return '''
+            <html>
+                <body>
+                    {numbers_so_far}
+                    {errors}
+                    <p>Enter your number:
+                    <form method="post" action=".">
+                        <p><input name="number" /></p>
+                        <p><input type="submit" name="action" value="Add another" /></p>
+                        <p><input type="submit" name="action" value="Calculate number" /></p>
+                    </form>
+                </body>
+            </html>
+        '''.format(numbers_so_far=numbers_so_far, errors=errors)
+
+All clear?  Maybe...  It does work, though, sort of.   Let's try it -- copy the code for
+the two files into your editor tabs, reload the site, and give it a go.   If you have a free
+account, it will work!
+
+IMAGES
+
+But if you have a paid account, you'll see some weird behaviour -- it
+will seem to sometimes forget numbers, and then remember them again later, as if it has multiple
+lists of numbers.
+
+IMAGES
+
+Before we go into why it's actually wrong (and why, counterintuitively, it works *worse* on a
+paid account than on a free one), here's the promised step-by-step runthrough,
+with comments after each block of code.  Starting off:
+
+    from flask import Flask, request
+
+    from processing import calculate_mode
+
+    app = Flask(__name__)
+    app.config["DEBUG"] = True
+
+All that is just copied from the last program.
+
+    inputs = []
+
+We're initialising a list for our inputs, and putting it in the global scope, so that
+it will persist over time.   This is because each view of our page will involve a call to
+the view function:
+
+    @app.route("/", methods=["GET", "POST"])
+    def mode_page():
+
+...which is exactly the same kind of setup for a view function as we had before.
+
+        errors = ""
+        if request.method == "POST":
+            number = None
+            try:
+                inputs.append(float(request.form["number"]))
+            except:
+                errors += "<p>{!r} is not a number.</p>\n".format(request.form["number"])
+
+We do very similar validation to the number as we did in our last website, and
+if the number is valid we add it to the global list.
+
+            if request.form["action"] == "Calculate number":
+
+This bit is a little more tricky.   On our page, we have two buttons -- one to add a number, and
+one to say "do the calculation" -- here's the bit of the HTML code from further down that specifies
+them:
+
+                        <p><input type="submit" name="action" value="Add another" /></p>
+                        <p><input type="submit" name="action" value="Calculate number" /></p>
+
+This means that when we get a post request from a browser, the "action" value in the `form`
+object will contain the text of the submit button that was actually clicked.
+
+So, if the "Calculate number" button was the one that the user clicked, we do the calculation
+and return the result (clearing the list of the inputs at the same time so that the user can
+try again with another list):
+
+                result = calculate_mode(inputs)
+                inputs.clear()
+                return '''
+                    <html>
+                        <body>
+                            <p>{result}</p>
+                            <p><a href="/">Click here to calculate again</a>
+                        </body>
+                    </html>
+                '''.format(result=result)
+
+If we get past that `if` statement, it means either that:
+
+* The request was using the post method, and we've just added a number to the list or set the error string to reflect the fact that the user entered an invalid number, or
+* The request was using the get method
+
+So:
+
+        if len(inputs) == 0:
+            numbers_so_far = ""
+        else:
+            numbers_so_far = "<p>Numbers so far:</p>"
+            for number in inputs:
+                numbers_so_far += "<p>{}</p>".format(number)
+
+...we generate a list of the numbers so far, if there are any, and then:
+
+        return '''
+            <html>
+                <body>
+                    {numbers_so_far}
+                    {errors}
+                    <p>Enter your number:
+                    <form method="post" action=".">
+                        <p><input name="number" /></p>
+                        <p><input type="submit" name="action" value="Add another" /></p>
+                        <p><input type="submit" name="action" value="Calculate number" /></p>
+                    </form>
+                </body>
+            </html>
+        '''.format(numbers_so_far=numbers_so_far, errors=errors)
+
+We return our page asking for a number, with the list of numbers so far and errors if either is applicable.
+
+Phew!
+
+So why is it incorrect?  If you have a paid account, you've already seen evidence that it doesn't
+work very well.  If you have a free account, here's a thought experiment -- what if two people
+were viewing the site at the same time?   In fact, you can see exactly what would happen if you
+use the "incognito" or "private tab" feature on your browser -- or, if you have multiple browsers
+installed, if you use two different browsers (say by visiting the site in Chrome and in Firefox at
+the same time).
+
+What you'll see is that both users are sharing a list of numbers.  The Chrome user starts off,
+and adds a number to the list:
+
+IMAGE
+
+Now the Firefox user adds a number -- but they see not only the number they added, but also the
+Chrome user's number:
+
+IMAGE
+
+It's pretty clear what's going on here.   There's one server handling the requests from both users,
+so there's only one list of inputs -- so everyone shares the same list.
+
+But what about the situation for websites running on paid accounts?   If you'll remember, it looked
+like the opposite was going on there -- each browser had multiple lists:
+
+IMAGES
+
+This is because paid accounts have multiple servers for the same website.   This is a good thing,
+it means that if they get lots of requests coming in at the same time, then everything gets processed
+more quickly -- so they have higher-traffic websites.  But it also means that different requests,
+*even successive requests from the same browser*, will wind up going to different servers, and because
+each server has its own list, the browser will see one list for one request, but see a different
+list on the next request.
+
+What this all means is that **global variables don't work for storing state in website code**.
+On each server that's running to control your site, everyone will see the same global variables.
+And if you have multiple servers, then each one will have a different set of global variables.
+
+What do do?
+
+## Sessions to the rescue!
+
+What we need is a way to keep a set of "global" variables that are specific to each person viewing
+the site, and are shared between all servers.   If two people, Alice and Bob, are using the site,
+then Alice will have her own list of inputs, which all servers can see, and Bob will have a different
+list of inputs, separate from Alice's but likewise shared between servers.
+
+The web dev mechanism for this is called sessions, and is built into Flask.  Let's make a tiny
+set of modifications to the Flask app to make it work properly.   Firstly, we'll import support
+for sessions by changing our Flask import line from this:
+
+    from flask import Flask, request
+
+...to this:
+
+    from flask import Flask, request, session
+
+In order to use sessions, we'll also need to configure Flask with a "secret key" -- sessions
+use cryptography, which requires a random number.   Add a line like this just after the line
+where we configure Flask's debug setting to be True:
+
+    app.config["SECRET_KEY"] = "lkmaslkdsldsamdlsdmasldsmkdd"
+
+Use a different string to the one I put above; mashing the keyboard randomly is a good way to get a
+reasonably random string, though if you want to do things properly, find something truly random.
+If you have a cat, put it on the keyboard -- that normally works well for me.
+
+Next, we'll get rid of
+the global `inputs` list by deleting this line:
+
+    inputs = []
+
+Now we'll use an `inputs` list that's stored inside the `session` object (which looks like
+a dictionary) instead of using our global variable when we add the item to the list.  Firstly,
+let's makes sure that whenever we're in our view function, we have a list of inputs associated
+with the current session if there isn't one already.   Right at the start of the view function,
+add this:
+
+    if "inputs" not in session:
+        session["inputs"] = []
+
+Next, inside the bit of code where we're adding a number to the inputs list, replace this line:
+
+            inputs.append(float(request.form["number"]))
+
+...with this one that uses the list on the session:
+
+            session["inputs"].append(float(request.form["number"]))
+
+There's also a subtlety here; because we're changing a list inside a session (instead of adding a
+new thing to the session), we need to tell the session object that it has changed by putting
+this line immediately after the last one:
+
+            session.modified = True
+
+Next, when we're calculating the mode, we need to look at our `session` again to get the list of
+inputs:
+
+            result = calculate_mode(inputs)
+
+...becomes
+
+            result = calculate_mode(session["inputs"])
+
+...and the line that clears the inputs so that the user can do another list likewise changes
+from
+
+            session["inputs"].clear()
+            session.modified = True
+
+Finally, the code that generates the "numbers so far" list at the start of the page needs to change
+to use the session:
+
+    if len(inputs) == 0:
+        numbers_so_far = ""
+    else:
+        numbers_so_far = "<p>Numbers so far:</p>"
+        for number in inputs:
+            numbers_so_far += "<p>{}</p>".format(number)
+
+...becomes:
+
+    if len(session["inputs"]) == 0:
+        numbers_so_far = ""
+    else:
+        numbers_so_far = "<p>Numbers so far:</p>"
+        for number in session["inputs"]:
+            numbers_so_far += "<p>{}</p>".format(number)
+
+Once all of those code changes have been done, you should have this:
+
+CODE
+
+Hit the reload button, and give it a try!  If you have a paid account, you'll find that now
+it all works properly -- and if you have a free account, you'll see that separate browsers now
+have separate lists of numbers :-)
+
+
