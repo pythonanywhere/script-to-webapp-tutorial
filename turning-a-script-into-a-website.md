@@ -67,11 +67,29 @@ the theory is the same.
 
 ### Step 2: create a website
 
+Firstly, [create a PythonAnywhere account](https://www.pythonanywhere.com/pricing/) if you haven't already.  A free "Beginner" account is enough for this tutorial.
+
+Once you've signed up, you'll be taken to the dashboard, with a tour window.  It's worth going through
+the tour so that you can learn how the site works -- it'll only take a minute or so.
+
+<img width="500" src="/static/images/flask-tutorial-signed-in.png">
+
+At the end of the tour you'll be presented with some options to "learn more".  You can just click "End tour" here,
+because this tutorial will tell you all you need to know.
+
+<img width="500" src="/static/images/flask-tutorial-tour-learn-more.png">
+
+Now you're presented with the PythonAnywhere dashboard.  I recommend you check your email and confirm your email address --
+otherwise if you forget your password later, you won't be able to reset it.
+
+<img width="500" src="/static/images/flask-tutorial-initial-dashboard.png">
+
+Now you need to create a website, which requires a web framework.
 The easiest web framework to get started with when creating this kind of thing is
 [Flask](http://flask.pocoo.org/); it's very simple and doesn't have a lot of the built-in
 stuff that other web frameworks have, but for our purposes that's a good thing.
 
-Assuming that you already have a PythonAnywhere account, log in and go to the "Web" page:
+To create your site, go to the "Web" page using the tab near the top right:
 
 <img width="500" src="/static/images/flask-tutorial-web-tab-empty.png">
 
@@ -97,7 +115,7 @@ PythonAnywhere has various versions of Python installed, and each version has it
 
 <img width="500" src="/static/images/flask-tutorial-create-web-app-choose-location.png">
 
-This page is asking you where you want to put your code.  Code on PythonAnywhere is stored in your home directory, `/home/`*yourusername*, and in its subdirectories.  Now, Flask is a particularly lighweight framework, and you can write a simple Flask app in a single file.  PythonAnywhere is asking you where it should create a directory and put a single file with a really really simple website.  The default should be fine; it will create a subdirectory of your home directory called `mysite` and then will put the Flask code into a file called `flask_app.py` inside that directory.
+This page is asking you where you want to put your code.  Code on PythonAnywhere is stored in your home directory, `/home/`*yourusername*, and in its subdirectories.  Flask is a particularly lightweight framework, and you can write a simple Flask app in a single file.  PythonAnywhere is asking you where it should create a directory and put a single file with a really really simple website.  The default should be fine; it will create a subdirectory of your home directory called `mysite` and then will put the Flask code into a file called `flask_app.py` inside that directory.
 
 *(It will overwrite any other file with the same name, so if you're _not_ using a new PythonAnywhere account, make sure that the file that it's got in the "Path" input box isn't one of your existing files.)*
 
@@ -166,7 +184,7 @@ function of its own.   It's generally a good idea to keep the web app code -- th
 display pages -- from the more complicated processing code (after all, if we were doing the stock analysis
 example rather than this simple add-two-numbers script, the processing could be thousands of lines long).
 
-So, we'll create a new file for our processing code.   Go back to the browser tab that's showing your editor page; you'll see
+So, we'll create a new file for our processing code.   Go back to the browser tab that's showing your editor page; up at the top, you'll see
 "breadcrumb" links showing you where the file is stored.  They'll be a series of directory names separated
 by "/" characters, each one apart from the last being a link.
 The last one, just before the name of the file containing your Flask code,
@@ -299,7 +317,7 @@ numbers, and click the "Do calculation" button, and you'll get... an incomprehen
 <img width="500" src="/static/images/flask-tutorial-method-not-allowed.png">
 
 Well, perhaps not entirely incomprehensible.  It says "method not allowed".  Previously we were
-using the "get" method to get our page, but we told the form that it should use the post message
+using the "get" method to get our page, but we just told the form that it should use the "post" method
 when the data was submitted.   So Flask is telling us that it's not going to allow that page to
 be requested with the "post" method.
 
@@ -354,7 +372,7 @@ returns the multi-line string with this:
                 <body>
                     {errors}
                     <p>Enter your numbers:
-                    <form>
+                    <form method="post" action=".">
                         <p><input name="number1" /></p>
                         <p><input name="number2" /></p>
                         <p><input type="submit" value="Do calculation" /></p>
@@ -453,7 +471,7 @@ However, if you get completely stuck, here's the code you should currently have:
                 return '''
                     <html>
                         <body>
-                            <p>{result}</p>
+                            <p>The result is {result}</p>
                             <p><a href="/">Click here to calculate again</a>
                         </body>
                     </html>
@@ -654,7 +672,7 @@ with comments after each block of code.  Starting off:
     app = Flask(__name__)
     app.config["DEBUG"] = True
 
-All that is just copied from the last program.
+All that is just copied from the previous website.
 
     inputs = []
 
@@ -703,7 +721,7 @@ So, if the "Calculate number" button was the one that the user clicked...
                 '''.format(result=result)
 
 ...we do the calculation and return the result (clearing the list of the inputs at the same
-time so that the user can try again with another list):
+time so that the user can try again with another list).
 
 If, however, we get past that `if request.form["action"] == "Calculate number"` statement, it means either that:
 
@@ -774,7 +792,7 @@ What this all means is that **global variables don't work for storing state in w
 On each server that's running to control your site, everyone will see the same global variables.
 And if you have multiple servers, then each one will have a different set of global variables.
 
-What do do?
+What to do?
 
 ## Sessions to the rescue!
 
@@ -1011,7 +1029,8 @@ Firstly, we put our calculationg routine into `processing.py`, as normal:
 
 Again, we'll go through that line-by-line in a moment (though it's worth noting that
 although this feels like something that should be much harder than the first case, the
-Flask app is much shorter :-)   But let's try it out first -- we visit the page:
+Flask app is much shorter :-)   But let's try it out first -- once you've saved the
+code on PythonAnywhere and reloaded the site, visit the page:
 
 <img src="/static/images/script-to-webapp-file-processing-start-page.png">
 
@@ -1049,7 +1068,7 @@ This is our normal Flask setup code.
     @app.route("/", methods=["GET", "POST"])
     def file_summer_page():
 
-As usual, we define a view
+As usual, we define a view.
 
         if request.method == "POST":
 
