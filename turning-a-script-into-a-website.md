@@ -181,7 +181,7 @@ A "spinner" will appear next to the button to tell you that PythonAnywhere is wo
 
 Now, we want our Flask app to be able to run our code.   We've already extracted it into a
 function of its own.   It's generally a good idea to keep the web app code -- the basic stuff to
-display pages -- from the more complicated processing code (after all, if we were doing the stock analysis
+display pages -- separate from the more complicated processing code (after all, if we were doing the stock analysis
 example rather than this simple add-two-numbers script, the processing could be thousands of lines long).
 
 So, we'll create a new file for our processing code.   Go back to the browser tab that's showing your editor page; up at the top, you'll see
@@ -216,7 +216,7 @@ or other error in the code; just after the line that says
 
     app.config["DEBUG"] = True
 
-Save the file; you'll see that you get a warning icon next to the new line.  If you move your
+Save the file; you'll see that you get a warning icon next to the new `import` line.  If you move your
 mouse pointer over the icon, you'll see the details:
 
 <img width="500" src="/static/images/script-to-webapp-import-warning.png">
@@ -543,7 +543,7 @@ and so on, until they're finished, at which point they click a button to get the
 Here's a naive implementation.   By "naive", I mean that it sort of works in some cases,
 but doesn't in general; it's the kind of thing that one might write, only to discover
 that when other people start using it, it breaks in really weird and confusing ways.
-It's worth going through, though, because the way in which is is wrong is instructive :-)
+It's worth going through, though, because the way in which is is wrong is instructive.
 
 Firstly, in our `processing.py` file we have the processing code, just as before:
 
@@ -630,9 +630,8 @@ Enter some more numbers:
 
 <img src="/static/images/script-to-webapp-globals-free-account-4.png">
 
-But if you have a paid account, you'll see some weird behaviour.  The results
-will look a bit random, but here's an example of the
-kind of thing you might see:
+But if you have a paid account, you'll see some weird behaviour.  Exactly what you'll
+get will depend on various random factors, but it will be something like this:
 
 <img src="/static/images/script-to-webapp-globals-paid-account-1.png">
 
@@ -958,7 +957,7 @@ A lot of Python scripts don't request the user to enter data a line at a time; t
 file as their input, process it, and produce a file as the output.  Here's a simple script
 that asks for an input filename and an output filename.   It expects the input file to contain
 a number of lines, each with a comma-separated list of numbers on it.   It writes to the
-output file the same number of lines, each one with just the sum of the numbers from the
+output file the same number of lines, each one containing the sum of the numbers from the
 equivalent line in the input file.
 
     def process_data(input_data):
@@ -985,7 +984,7 @@ file that that script requires, and will then provide the output file to downloa
 pretty similar to the original app we did -- there's just three phases, input-process-output.  So
 the Flask app looks very similar.
 
-Firstly, we put our calculationg routine into `processing.py`, as normal:
+Firstly, we put our calculating routine into `processing.py`, as normal:
 
     def process_data(input_data):
         result = ""
@@ -1027,7 +1026,7 @@ Firstly, we put our calculationg routine into `processing.py`, as normal:
             </html>
         '''
 
-Again, we'll go through that line-by-line in a moment (though it's worth noting that
+Again, we'll go through that bit-by-bit in a moment (though it's worth noting that
 although this feels like something that should be much harder than the first case, the
 Flask app is much shorter :-)   But let's try it out first -- once you've saved the
 code on PythonAnywhere and reloaded the site, visit the page:
@@ -1054,7 +1053,7 @@ We've got a website where we can upload a file, process it, and download the res
 Obviously the user interface could use a bit of work, but that's left as an exercise for
 the reader...
 
-So, how dow the code work?  Here's the line-by-line breakdown:
+So, how dow the code work?  Here's the breakdown:
 
     from flask import Flask, make_response, request
 
